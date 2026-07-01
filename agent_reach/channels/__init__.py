@@ -25,6 +25,10 @@ from .target import TargetChannel
 from .etsy import EtsyChannel
 from .ebay import EbayChannel
 from .walmart import WalmartChannel
+from .aliexpress import AliexpressChannel
+from .amazon import AmazonChannel
+from .shopee import ShopeeChannel
+from .lazada import LazadaChannel
 
 
 ALL_CHANNELS: List[Channel] = [
@@ -46,6 +50,10 @@ ALL_CHANNELS: List[Channel] = [
     EtsyChannel(),
     EbayChannel(),
     WalmartChannel(),
+    AliexpressChannel(),
+    AmazonChannel(),
+    ShopeeChannel(),
+    LazadaChannel(),
 ]
 
 
