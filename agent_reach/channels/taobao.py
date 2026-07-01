@@ -15,14 +15,14 @@ class TaobaoChannel(Channel):
 
     def check(self, config=None):
         self.active_backend = None
-        result = probe_command("ecommerce-cli", ["check", "taobao"], timeout=25, package="ecommerce-cli")
+        result = probe_command("ecommerce-cli", ["check", "taobao"], timeout=30, package="ecommerce-cli")
         if result.status == "missing":
             return "off", "ecommerce-cli 未安装。安装：pipx install ecommerce-cli && python -m playwright install chromium"
         if result.status == "broken":
             return "error", f"ecommerce-cli 已损坏：{result.hint}"
         try:
-            import json
-            data = json.loads(result.output.strip().split("\n")[-1])
+            from ._ecom_utils import parse_ecom_check_output
+            data = parse_ecom_check_output(result.output)
             status = data.get("status", "error")
             if status == "ok":
                 self.active_backend = self.backends[0]

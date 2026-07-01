@@ -19,7 +19,7 @@ class BestBuyChannel(Channel):
 
         # Probe ecommerce-cli installation
         result = probe_command(
-            "ecommerce-cli", ["check", "bestbuy"], timeout=20, package="ecommerce-cli"
+            "ecommerce-cli", ["check", "bestbuy"], timeout=30, package="ecommerce-cli"
         )
 
         if result.status == "missing":
@@ -35,10 +35,9 @@ class BestBuyChannel(Channel):
         # Parse the JSON check output
         # probe_command captures stdout+stderr; find the JSON line
         try:
-            import json
+            from ._ecom_utils import parse_ecom_check_output
 
-            lines = result.output.strip().split("\n")
-            data = json.loads(lines[-1])  # Last line should be the JSON
+            data = parse_ecom_check_output(result.output)  # Last line should be the JSON
 
             status = data.get("status", "error")
             message = data.get("message", "")
