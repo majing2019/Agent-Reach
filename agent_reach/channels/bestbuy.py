@@ -19,7 +19,7 @@ class BestBuyChannel(Channel):
 
         # Probe ecommerce-cli installation
         result = probe_command(
-            "ecommerce-cli", ["bestbuy", "check"], timeout=20, package="ecommerce-cli"
+            "ecommerce-cli", ["check", "bestbuy"], timeout=20, package="ecommerce-cli"
         )
 
         if result.status == "missing":

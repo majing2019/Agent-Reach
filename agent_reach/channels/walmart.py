@@ -16,7 +16,7 @@ class WalmartChannel(Channel):
 
     def check(self, config=None):
         self.active_backend = None
-        result = probe_command("ecommerce-cli", ["walmart", "check"], timeout=20, package="ecommerce-cli")
+        result = probe_command("ecommerce-cli", ["check", "walmart"], timeout=20, package="ecommerce-cli")
 
         if result.status == "missing":
             return "off", "ecommerce-cli 未安装。安装：pipx install ecommerce-cli && python -m playwright install chromium"
