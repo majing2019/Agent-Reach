@@ -21,6 +21,10 @@ from .xiaoyuzhou import XiaoyuzhouChannel
 from .v2ex import V2EXChannel
 from .xueqiu import XueqiuChannel
 from .bestbuy import BestBuyChannel
+from .target import TargetChannel
+from .etsy import EtsyChannel
+from .ebay import EbayChannel
+from .walmart import WalmartChannel
 
 
 ALL_CHANNELS: List[Channel] = [
@@ -38,6 +42,10 @@ ALL_CHANNELS: List[Channel] = [
     ExaSearchChannel(),
     WebChannel(),
     BestBuyChannel(),
+    TargetChannel(),
+    EtsyChannel(),
+    EbayChannel(),
+    WalmartChannel(),
 ]
 
 
