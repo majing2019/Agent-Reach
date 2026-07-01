@@ -1,0 +1,32 @@
+# -*- coding: utf-8 -*-
+"""闲鱼 — 二手商品搜索与详情 via ecommerce-cli (需登录)."""
+from .base import Channel
+from ..probe import probe_command
+
+
+class GoofishChannel(Channel):
+    name = "goofish"
+    description = "闲鱼二手商品搜索与详情（ecommerce-cli，需登录 Cookie）"
+    backends = ["ecommerce-cli"]
+    tier = 1  # 需要登录 Cookie
+
+    def can_handle(self, url: str) -> bool:
+        return any(d in url.lower() for d in ["goofish.com", "2.taobao.com"])
+
+    def check(self, config=None):
+        self.active_backend = None
+        result = probe_command("ecommerce-cli", ["goofish", "check"], timeout=25, package="ecommerce-cli")
+        if result.status == "missing":
+            return "off", "ecommerce-cli 未安装。安装：pipx install ecommerce-cli && python -m playwright install chromium"
+        if result.status == "broken":
+            return "error", f"ecommerce-cli 已损坏：{result.hint}"
+        try:
+            import json
+            data = json.loads(result.output.strip().split("\n")[-1])
+            status = data.get("status", "error")
+            if status == "ok":
+                self.active_backend = self.backends[0]
+                return "ok", data.get("message", "闲鱼可用")
+            return "warn", data.get("message", "")
+        except Exception:
+            return "warn", f"ecommerce-cli check 输出异常：{result.output[:200]}"

@@ -29,6 +29,11 @@ from .aliexpress import AliexpressChannel
 from .amazon import AmazonChannel
 from .shopee import ShopeeChannel
 from .lazada import LazadaChannel
+from .jd import JdChannel
+from .taobao import TaobaoChannel
+from .tmall import TmallChannel
+from .pinduoduo import PinduoduoChannel
+from .goofish import GoofishChannel
 
 
 ALL_CHANNELS: List[Channel] = [
@@ -54,6 +59,11 @@ ALL_CHANNELS: List[Channel] = [
     AmazonChannel(),
     ShopeeChannel(),
     LazadaChannel(),
+    JdChannel(),
+    TaobaoChannel(),
+    TmallChannel(),
+    PinduoduoChannel(),
+    GoofishChannel(),
 ]
 
 
