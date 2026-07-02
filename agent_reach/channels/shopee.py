@@ -6,9 +6,9 @@ from ..probe import probe_command
 
 class ShopeeChannel(Channel):
     name = "shopee"
-    description = "Shopee 商品搜索与详情（ecommerce-cli）"
+    description = "Shopee 商品搜索与详情（ecommerce-cli，可能需要登录）"
     backends = ["ecommerce-cli"]
-    tier = 0
+    tier = 1  # 搜索可能触发流量验证，登录后更稳定
 
     def can_handle(self, url: str) -> bool:
         return any(d in url.lower() for d in ["shopee.com", "shopee.sg", "shopee.tw", "shopee.co"])
