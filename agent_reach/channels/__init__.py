@@ -4,43 +4,32 @@ Channel registry — lists all supported platforms for doctor checks.
 """
 
 from typing import List, Optional
-from .base import Channel
 
 # Import all channels
-from .web import WebChannel
-from .github import GitHubChannel
-from .twitter import TwitterChannel
-from .youtube import YouTubeChannel
-from .reddit import RedditChannel
-from .rss import RSSChannel
+from .base import Channel
 from .bilibili import BilibiliChannel
 from .exa_search import ExaSearchChannel
-from .xiaohongshu import XiaoHongShuChannel
+from .facebook import FacebookChannel
+from .github import GitHubChannel
+from .instagram import InstagramChannel
 from .linkedin import LinkedInChannel
-from .xiaoyuzhou import XiaoyuzhouChannel
+from .reddit import RedditChannel
+from .rss import RSSChannel
+from .twitter import TwitterChannel
 from .v2ex import V2EXChannel
+from .web import WebChannel
+from .xiaohongshu import XiaoHongShuChannel
+from .xiaoyuzhou import XiaoyuzhouChannel
 from .xueqiu import XueqiuChannel
-from .bestbuy import BestBuyChannel
-from .target import TargetChannel
-from .etsy import EtsyChannel
-from .ebay import EbayChannel
-from .walmart import WalmartChannel
-from .aliexpress import AliexpressChannel
-from .amazon import AmazonChannel
-from .shopee import ShopeeChannel
-from .lazada import LazadaChannel
-from .jd import JdChannel
-from .taobao import TaobaoChannel
-from .tmall import TmallChannel
-from .pinduoduo import PinduoduoChannel
-from .goofish import GoofishChannel
-
+from .youtube import YouTubeChannel
 
 ALL_CHANNELS: List[Channel] = [
     GitHubChannel(),
     TwitterChannel(),
     YouTubeChannel(),
     RedditChannel(),
+    FacebookChannel(),
+    InstagramChannel(),
     BilibiliChannel(),
     XiaoHongShuChannel(),
     LinkedInChannel(),
@@ -83,5 +72,6 @@ def get_all_channels() -> List[Channel]:
 __all__ = [
     "Channel",
     "ALL_CHANNELS",
-    "get_channel", "get_all_channels",
+    "get_channel",
+    "get_all_channels",
 ]
