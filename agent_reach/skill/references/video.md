@@ -72,6 +72,36 @@ bili rank -n 10
 bili audio BVxxx
 ```
 
+### 视频下载 (bilix)
+
+```bash
+# 安装（macOS）
+brew install bilix
+
+# 查看视频信息（画质、编码、大小，无需登录）
+bilix info "https://www.bilibili.com/video/BVxxx"
+
+# 下载单个视频（默认最高可下载画质，登录后解锁 1080P+）
+bilix get_video "https://www.bilibili.com/video/BVxxx" --dir /tmp
+
+# 下载 UP 主全部投稿
+bilix get_up UID --num 10 --dir /tmp
+
+# 仅下载音频
+bilix get_video "https://www.bilibili.com/video/BVxxx" --only-audio
+
+# 下载字幕/弹幕/封面
+bilix get_video "https://www.bilibili.com/video/BVxxx" --subtitle --dm --image
+
+# 下载系列/多P视频
+bilix get_series "https://www.bilibili.com/video/BVxxx"
+
+# 从浏览器导入 Cookie（解锁 1080P 高码率/大会员画质）
+bilix get_video "https://www.bilibili.com/video/BVxxx" --from-browser chrome
+```
+
+> **bilix**：Rust 编写的 B站专用异步下载器，高速批量下载。未登录可下 480P，登录后解锁 1080P+ / 高码率 / 大会员画质。反爬适应好，不会触发 412 风控。
+
 ### 字幕 (OpenCLI，需要桌面 Chrome)
 
 ```bash
@@ -126,6 +156,7 @@ agent-reach doctor
 |-----|---------|
 | YouTube 字幕 | yt-dlp |
 | B站视频详情/搜索 | bili-cli |
+| B站视频下载 | bilix |
 | B站字幕 | opencli bilibili subtitle |
 | 播客转录 | 小宇宙 transcribe.sh |
 | 无字幕音视频 | agent-reach transcribe（B站音频先 `bili audio`） |
