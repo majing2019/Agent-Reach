@@ -39,20 +39,6 @@ ALL_CHANNELS: List[Channel] = [
     RSSChannel(),
     ExaSearchChannel(),
     WebChannel(),
-    BestBuyChannel(),
-    TargetChannel(),
-    EtsyChannel(),
-    EbayChannel(),
-    WalmartChannel(),
-    AliexpressChannel(),
-    AmazonChannel(),
-    ShopeeChannel(),
-    LazadaChannel(),
-    JdChannel(),
-    TaobaoChannel(),
-    TmallChannel(),
-    PinduoduoChannel(),
-    GoofishChannel(),
 ]
 
 
