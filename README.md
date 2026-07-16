@@ -249,6 +249,42 @@ Agent Reach 在设计上重视安全：
 | 安全模式 | `agent-reach install --env=auto --safe` | 生产服务器、多人共用机器 |
 | 仅预览 | `agent-reach install --env=auto --dry-run` | 先看看会做什么 |
 
+#### 从 Git 归档安装（CI/CD / 其他项目集成）
+
+GitHub 自动为每个分支和标签生成 zip 包，可以直接 `pip install`：
+
+```bash
+# 安装最新 main 分支（适合开发）
+pip install https://github.com/Panniantong/agent-reach/archive/main.zip
+
+# 安装某个版本（推荐生产环境）
+pip install https://github.com/Panniantong/agent-reach/archive/v1.5.0.zip
+```
+
+URL 规则：`https://github.com/{用户}/{仓库}/archive/{分支或标签}.zip`
+
+#### 打版本标签
+
+```bash
+# 打一个版本标签
+git tag v1.5.0
+
+# 推送到 GitHub（标签默认不随 git push 推送）
+git push origin v1.5.0
+
+# 推送所有本地标签
+git push origin --tags
+
+# 查看已有标签
+git tag -l
+
+# 删除标签（如果打错了）
+git tag -d v1.5.0          # 删本地
+git push origin :v1.5.0    # 删远程
+```
+
+打好标签后，即可通过 `https://github.com/.../archive/v1.5.0.zip` 锁定版本安装，不随 main 分支变化。
+
 ### 🗑️ 卸载
 
 ```bash
