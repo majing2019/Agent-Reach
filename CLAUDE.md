@@ -1,10 +1,9 @@
 # CLAUDE.md
 
 ## Project
-Agent Reach — Python CLI + library that gives AI agents read/search access to 27 internet platforms (13 social/content + 14 e-commerce).
+Agent Reach — Python CLI + library that gives AI agents read/search access to 15 internet platforms (social, video, search, dev, and content).
 Positioning: installer + doctor + config tool. NOT a wrapper — after install, agents call upstream tools directly.
 Repo: github.com/Panniantong/Agent-Reach | License: MIT | Version: 1.5.0
-E-commerce upstream tool: ecommerce-cli (Playwright-based browser automation, sibling project).
 
 ## Commands
 - `pip install -e .` — Dev install
