@@ -157,6 +157,34 @@ class XiaoHongShuChannel(Channel):
         d = urlparse(url).netloc.lower()
         return "xiaohongshu.com" in d or "xhslink.com" in d
 
+    def download_note(
+        self,
+        url: str,
+        save_path=None,
+        download_media: bool = True,
+        download_comments: bool = True,
+    ):
+        """Download a Xiaohongshu note to local storage.
+
+        Convenience method that delegates to :func:`agent_reach.download.download_xhs_note`.
+
+        Args:
+            url: Full XHS note URL.
+            save_path: Base directory (default: ~/.agent-reach/xiaohongshu/).
+            download_media: Whether to download images and videos.
+            download_comments: Whether to fetch and save comments.
+
+        Returns:
+            pathlib.Path to the note directory.
+        """
+        from agent_reach.download import download_xhs_note
+        return download_xhs_note(
+            url,
+            save_path=save_path,
+            download_media=download_media,
+            download_comments=download_comments,
+        )
+
     def check(self, config=None):
         """Probe candidates in order; first fully-usable backend wins.
 

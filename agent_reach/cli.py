@@ -127,6 +127,19 @@ def main():
     # ── watch ──
     sub.add_parser("watch", help="Quick health check + update check (for scheduled tasks)")
 
+    # ── download ──
+    p_dl = sub.add_parser("download", help="Download content from platforms")
+    p_dl_sub = p_dl.add_subparsers(dest="dl_platform", help="Platform to download from")
+
+    p_dl_xhs = p_dl_sub.add_parser("xhs", help="Download a Xiaohongshu note")
+    p_dl_xhs.add_argument("url", help="Xiaohongshu note URL")
+    p_dl_xhs.add_argument("--save-path", default=None,
+                          help="Save directory (default: ~/.agent-reach/xiaohongshu/)")
+    p_dl_xhs.add_argument("--no-media", action="store_true",
+                          help="Skip downloading images/videos")
+    p_dl_xhs.add_argument("--no-comments", action="store_true",
+                          help="Skip downloading comments")
+
     # ── version ──
     sub.add_parser("version", help="Show version")
 
@@ -163,6 +176,8 @@ def main():
         _cmd_format(args)
     elif args.command == "transcribe":
         _cmd_transcribe(args)
+    elif args.command == "download":
+        _cmd_download(args)
 
 
 # ── Command handlers ────────────────────────────────
@@ -1149,6 +1164,48 @@ def _cmd_transcribe(args):
         print(f"✅ Transcript written to {args.output}")
     else:
         print(text)
+
+
+def _cmd_download(args):
+    """Download content from platforms."""
+    if args.dl_platform is None:
+        print("Usage: agent-reach download xhs <URL> [options]")
+        sys.exit(0)
+
+    if args.dl_platform == "xhs":
+        from pathlib import Path
+        from agent_reach.download import download_xhs_note
+        from agent_reach.config import Config
+
+        config = Config()
+        save_path = Path(args.save_path) if args.save_path else None
+
+        try:
+            result_dir = download_xhs_note(
+                url=args.url,
+                save_path=save_path,
+                config=config,
+                download_media=not args.no_media,
+                download_comments=not args.no_comments,
+            )
+            print(f"✅ 笔记已下载到: {result_dir}")
+            metadata_path = result_dir / "metadata.json"
+            if metadata_path.exists():
+                import json
+                with open(metadata_path, "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+                title = meta.get("title", "Untitled")
+                note_type = meta.get("type", "unknown")
+                images = meta.get("images", [])
+                print(f"  标题: {title}")
+                print(f"  类型: {note_type}")
+                print(f"  图片: {len(images)} 张")
+        except Exception as e:
+            print(f"❌ 下载失败: {e}")
+            sys.exit(1)
+    else:
+        print(f"Unknown platform: {args.dl_platform}")
+        sys.exit(1)
 
 
 def _parse_twitter_cookie_input(value: str):

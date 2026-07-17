@@ -63,6 +63,24 @@ xhs feed                    # 推荐
 >
 > **写操作（发帖/评论/点赞）**: 建议只读。xhs-cli v0.6.x 写操作可能因签名问题返回 406。
 
+### 下载笔记（本地存档）
+
+```bash
+# 下载笔记的图片、视频、元数据到本地
+agent-reach download xhs "NOTE_URL"
+
+# 指定保存目录
+agent-reach download xhs "NOTE_URL" --save-path ~/Downloads/xhs
+
+# 只下载元数据，不下载媒体文件
+agent-reach download xhs "NOTE_URL" --no-media
+
+# 不下载评论
+agent-reach download xhs "NOTE_URL" --no-comments
+```
+
+> 存储结构：`{save_path}/{note_id}/` 目录下包含 `metadata.json`、`images/`、`videos/`、`comments.json`。默认路径为 `~/.agent-reach/xiaohongshu/`。
+
 ## Twitter/X (twitter-cli)
 
 ### 稳定命令
