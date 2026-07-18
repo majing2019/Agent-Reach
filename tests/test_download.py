@@ -244,6 +244,76 @@ class TestExtractVideoUrls:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# OpenCLI field-list parsing tests
+# ---------------------------------------------------------------------------
+
+
+class TestOpencliFieldlist:
+    """OpenCLI's real `note -f yaml` returns a [{field, value}, ...] list."""
+
+    FIELDLIST_YAML = (
+        "- field: title\n  value: 支点越多越稳。\n"
+        "- field: author\n  value: 夏知非fifi\n"
+        "- field: content\n  value: 一些正文内容\n"
+        "- field: likes\n  value: '1166'\n"
+        "- field: collects\n  value: '200'\n"
+        "- field: comments\n  value: '10'\n"
+        "- field: tags\n  value: '#自我成长, #生活碎片'\n"
+    )
+
+    def test_fieldlist_detected(self):
+        import yaml as _yaml
+        from agent_reach.download import _is_opencli_fieldlist
+        rows = _yaml.safe_load(self.FIELDLIST_YAML)
+        assert _is_opencli_fieldlist(rows) is True
+
+    def test_dict_and_empty_not_fieldlist(self):
+        from agent_reach.download import _is_opencli_fieldlist
+        assert _is_opencli_fieldlist({"title": "x"}) is False
+        assert _is_opencli_fieldlist([]) is False
+
+    def test_fieldlist_parsed_to_schema(self):
+        import yaml as _yaml
+        from agent_reach.download import _opencli_fieldlist_to_note
+        rows = _yaml.safe_load(self.FIELDLIST_YAML)
+        note = _opencli_fieldlist_to_note(
+            rows, "https://www.xiaohongshu.com/explore/abc123?xsec_token=t"
+        )
+        assert note["note_id"] == "abc123"
+        assert note["title"] == "支点越多越稳。"
+        assert note["user"]["nickname"] == "夏知非fifi"
+        assert note["desc"] == "一些正文内容"
+        assert note["liked_count"] == 1166
+        assert note["collected_count"] == 200
+        assert note["comment_count"] == 10
+        assert note["tags"] == ["#自我成长", "#生活碎片"]
+        assert note["images"] == []
+
+    def test_wan_count_coerced(self):
+        from agent_reach.download import _coerce_count
+        assert _coerce_count("2.3万") == 23000
+        assert _coerce_count("3730") == 3730
+        assert _coerce_count(5) == 5
+
+
+class TestParseXhsUrlExtra:
+    def test_search_result_url(self):
+        from agent_reach.download import _parse_xhs_url
+        url = "https://www.xiaohongshu.com/search_result/abc123?xsec_token=tok"
+        assert _parse_xhs_url(url)["note_id"] == "abc123"
+
+    def test_user_profile_url(self):
+        from agent_reach.download import _parse_xhs_url
+        url = (
+            "https://www.xiaohongshu.com/user/profile/57ea22315e87e707c0bc01f1/"
+            "693c2742000000001f0063fb?xsec_token=tok"
+        )
+        result = _parse_xhs_url(url)
+        assert result["note_id"] == "693c2742000000001f0063fb"
+        assert result["xsec_token"] == "tok"
+
+
 class TestDownloadXhsNote:
     """End-to-end tests with mocked upstream tools."""
 
@@ -333,6 +403,58 @@ share_count: "5"
         assert len(meta["images"]) == 2
 
         # Check images
+        assert (note_dir / "images" / "0.jpg").exists()
+        assert (note_dir / "images" / "1.jpg").exists()
+
+    def test_opencli_fieldlist_uses_native_download(self, tmp_path, monkeypatch):
+        """Real OpenCLI note (field-list, no media URLs) → native media fetch."""
+        monkeypatch.setattr(
+            "agent_reach.channels.xiaohongshu.XiaoHongShuChannel.check",
+            lambda self, config: None,
+        )
+        monkeypatch.setattr(
+            "agent_reach.channels.xiaohongshu.XiaoHongShuChannel.active_backend",
+            "OpenCLI",
+        )
+
+        fieldlist = (
+            "- field: title\n  value: 支点越多越稳。\n"
+            "- field: author\n  value: 夏知非fifi\n"
+            "- field: content\n  value: 正文\n"
+            "- field: likes\n  value: '1166'\n"
+            "- field: tags\n  value: '#a, #b'\n"
+        )
+
+        def fake_run(cmd, **kwargs):
+            if "note" in cmd:
+                return subprocess.CompletedProcess(cmd, 0, stdout=fieldlist, stderr="")
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        monkeypatch.setattr("subprocess.run", fake_run)
+
+        def fake_media(url, note_dir, **kwargs):
+            d = note_dir / "images"
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "0.jpg").write_bytes(b"x")
+            (d / "1.jpg").write_bytes(b"y")
+            return ["images/0.jpg", "images/1.jpg"], []
+
+        monkeypatch.setattr(
+            "agent_reach.download._download_media_opencli", fake_media
+        )
+
+        result = download_xhs_note(
+            "https://www.xiaohongshu.com/explore/abc123?xsec_token=tok",
+            save_path=tmp_path,
+            download_comments=False,
+        )
+
+        note_dir = tmp_path / "abc123"
+        assert result == note_dir
+        meta = json.loads((note_dir / "metadata.json").read_text(encoding="utf-8"))
+        assert meta["title"] == "支点越多越稳。"
+        assert meta["images"] == ["images/0.jpg", "images/1.jpg"]
+        assert meta["type"] == "normal"
         assert (note_dir / "images" / "0.jpg").exists()
         assert (note_dir / "images" / "1.jpg").exists()
 

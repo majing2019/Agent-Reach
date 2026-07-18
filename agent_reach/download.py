@@ -25,7 +25,9 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -110,9 +112,12 @@ def download_xhs_note(
     # 6. Write metadata.json --------------------------------------------------
     _write_metadata(note_dir, note_data, url)
 
+    media_fetched_via_urls = False
+
     # 7. Download images ------------------------------------------------------
     image_urls = note_data.get("images", []) or []
     if download_media and image_urls:
+        media_fetched_via_urls = True
         img_dir = make_private_dir(note_dir / "images")
         for i, img_url in enumerate(image_urls):
             dest = img_dir / f"{i}.jpg"
@@ -127,6 +132,7 @@ def download_xhs_note(
     # 8. Download videos ------------------------------------------------------
     video_urls = _extract_video_urls(note_data)
     if download_media and video_urls:
+        media_fetched_via_urls = True
         vid_dir = make_private_dir(note_dir / "videos")
         for i, vid_url in enumerate(video_urls):
             dest = vid_dir / f"{i}.mp4"
@@ -136,10 +142,18 @@ def download_xhs_note(
             else:
                 logger.warning(f"  Video failed: {vid_url[:80]}")
 
+    # 8b. OpenCLI native media fallback --------------------------------------
+    # OpenCLI's `note` metadata carries no image/video URLs; when nothing was
+    # fetched above, delegate to `opencli xiaohongshu download` and lay the
+    # files out under images/ and videos/.
+    if download_media and backend.startswith("OpenCLI") and not media_fetched_via_urls:
+        _download_media_opencli(url, note_dir)
+        _patch_metadata_local_media(note_dir)
+
     # 9. Fetch comments (optional) --------------------------------------------
     if download_comments:
         try:
-            comments = _fetch_comments(note_id, xsec_token, backend)
+            comments = _fetch_comments(url, note_id, xsec_token, backend)
             if comments:
                 comments_path = note_dir / "comments.json"
                 comments_path.write_text(
@@ -177,20 +191,29 @@ def _resolve_short_url(url: str) -> str:
 def _parse_xhs_url(url: str) -> dict:
     """Extract note_id and xsec_token from a Xiaohongshu URL.
 
-    Supported patterns:
+    Supported patterns (the same note is served under all of them):
         /explore/{note_id}?xsec_token=...
         /discovery/item/{note_id}?xsec_token=...
+        /search_result/{note_id}?xsec_token=...
+        /user/profile/{user_id}/{note_id}?xsec_token=...
         /explore/{note_id}  (no xsec_token)
     """
     parsed = urlparse(url)
     path = parsed.path.rstrip("/")
     query = parse_qs(parsed.query)
 
-    # Try /explore/{note_id}
-    m = re.search(r"/explore/([a-fA-F0-9]+)", path)
-    if not m:
-        # Try /discovery/item/{note_id}
-        m = re.search(r"/discovery/item/([a-fA-F0-9]+)", path)
+    # XHS exposes the same note under several path shapes; try each.
+    patterns = (
+        r"/explore/([a-fA-F0-9]+)",
+        r"/discovery/item/([a-fA-F0-9]+)",
+        r"/search_result/([a-fA-F0-9]+)",
+        r"/user/profile/[a-fA-F0-9]+/([a-fA-F0-9]+)",
+    )
+    m = None
+    for pattern in patterns:
+        m = re.search(pattern, path)
+        if m:
+            break
 
     if not m:
         raise ValueError(f"无法从 URL 提取 note_id: {url}")
@@ -220,6 +243,72 @@ def _fetch_note_metadata(
         return _fetch_xhs_cli(url)
 
 
+def _is_opencli_fieldlist(data) -> bool:
+    """True if `data` is OpenCLI's `[{field, value}, ...]` note output."""
+    return (
+        isinstance(data, list)
+        and len(data) > 0
+        and all(isinstance(x, dict) and "field" in x for x in data)
+    )
+
+
+def _coerce_count(val):
+    """Coerce XHS count strings ('3730', '2.3万') to int when possible."""
+    if isinstance(val, int):
+        return val
+    if not isinstance(val, str):
+        return val
+    s = val.strip()
+    if not s:
+        return val
+    if "万" in s:
+        try:
+            return int(float(s.replace("万", "").strip()) * 10000)
+        except ValueError:
+            return val
+    try:
+        return int(s)
+    except ValueError:
+        return val
+
+
+def _split_tags(val) -> list:
+    """Split an XHS tag string ('#a, #b') or list into a clean list."""
+    if isinstance(val, list):
+        return [str(t).strip() for t in val if str(t).strip()]
+    if isinstance(val, str):
+        return [t.strip() for t in re.split(r"[,，]", val) if t.strip()]
+    return []
+
+
+def _opencli_fieldlist_to_note(rows: list, url: str) -> dict:
+    """Convert OpenCLI `note -f yaml` field/value rows into the note schema.
+
+    OpenCLI's note output only carries metadata (no media URLs and no note
+    type/id), so images/videos are left empty and fetched via the native
+    `opencli download` fallback in :func:`download_xhs_note`.
+    """
+    flat = {}
+    for row in rows:
+        if isinstance(row, dict) and "field" in row:
+            flat[row["field"]] = row.get("value")
+
+    note_id = _parse_xhs_url(url)["note_id"]
+    return {
+        "note_id": note_id,
+        "title": flat.get("title", "") or "",
+        "desc": flat.get("content", "") or flat.get("desc", "") or "",
+        "type": flat.get("type", "") or "",
+        "user": {"nickname": flat.get("author", "") or ""},
+        "liked_count": _coerce_count(flat.get("likes")),
+        "collected_count": _coerce_count(flat.get("collects")),
+        "comment_count": _coerce_count(flat.get("comments")),
+        "share_count": _coerce_count(flat.get("shares")),
+        "tags": _split_tags(flat.get("tags")),
+        "images": [],
+    }
+
+
 def _fetch_opencli(url: str, timeout: int = 60) -> dict:
     """Fetch note via OpenCLI (desktop, browser session)."""
     logger.info(f"Running: opencli xiaohongshu note \"{url[:60]}...\" -f yaml")
@@ -244,6 +333,17 @@ def _fetch_opencli(url: str, timeout: int = 60) -> dict:
         data = yaml.safe_load(raw)
     except yaml.YAMLError as exc:
         raise ValueError(f"opencli YAML 解析失败: {exc}")
+
+    # OpenCLI `note -f yaml` returns a field/value list (title, author,
+    # content, likes, ...) rather than a note object, and it carries no media
+    # URLs. Normalize it into the note schema; media is fetched separately.
+    if _is_opencli_fieldlist(data):
+        return _opencli_fieldlist_to_note(data, url)
+
+    if isinstance(data, list):
+        # Search-result style list — take the first note.
+        from agent_reach.channels.xiaohongshu import format_xhs_result
+        return _ensure_dict(format_xhs_result(data), "opencli")
 
     if not isinstance(data, dict):
         raise ValueError(f"opencli 输出格式异常: {type(data).__name__}")
@@ -430,6 +530,106 @@ def _download_file(
     return False
 
 
+def _download_media_opencli(url: str, note_dir: Path, timeout: int = 300):
+    """Fetch images/videos via OpenCLI's native download command.
+
+    OpenCLI's `note` returns only metadata (no media URLs), so on the OpenCLI
+    backend we delegate media retrieval to `opencli xiaohongshu download` and
+    move the resulting files into the standard ``images/`` and ``videos/``
+    layout. Returns ``(image_paths, video_paths)`` relative to ``note_dir``.
+    """
+    img_ext = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+    vid_ext = {".mp4", ".mov", ".webm", ".m4v"}
+    img_dir = make_private_dir(note_dir / "images")
+    vid_dir = make_private_dir(note_dir / "videos")
+    img_names: list = []
+    vid_names: list = []
+
+    with tempfile.TemporaryDirectory() as tmp:
+        logger.info(
+            f"Running: opencli xiaohongshu download \"{url[:60]}...\" --output {tmp}"
+        )
+        try:
+            proc = subprocess.run(
+                ["opencli", "xiaohongshu", "download", url, "--output", tmp, "-f", "yaml"],
+                capture_output=True, text=True, timeout=timeout,
+                env={**os.environ, "PYTHONUTF8": "1"},
+            )
+        except FileNotFoundError:
+            logger.warning("opencli 未安装，跳过媒体下载")
+            return [], []
+        except subprocess.TimeoutExpired:
+            logger.warning("opencli download 超时，跳过媒体下载")
+            return [], []
+
+        if proc.returncode != 0:
+            logger.warning(
+                f"opencli download 失败 (exit {proc.returncode}): "
+                f"{(proc.stderr or '')[:200]}"
+            )
+            return [], []
+
+        for p in sorted(
+            (f for f in Path(tmp).rglob("*") if f.is_file()),
+            key=lambda x: x.name,
+        ):
+            ext = p.suffix.lower()
+            if ext in vid_ext:
+                name = f"{len(vid_names)}{ext}"
+                shutil.move(str(p), str(vid_dir / name))
+                vid_names.append(f"videos/{name}")
+            elif ext in img_ext:
+                name = f"{len(img_names)}{ext}"
+                shutil.move(str(p), str(img_dir / name))
+                img_names.append(f"images/{name}")
+            else:
+                logger.info(f"  跳过未知类型文件: {p.name}")
+
+    logger.info(
+        f"  opencli download: {len(img_names)} images, {len(vid_names)} videos"
+    )
+    return img_names, vid_names
+
+
+def _patch_metadata_local_media(note_dir: Path) -> None:
+    """Reconcile metadata.json media fields with files actually on disk.
+
+    OpenCLI metadata has no media URLs, so we record the local file paths and
+    infer the note type (video vs normal) from what was fetched. Scanning disk
+    (rather than trusting a single fetch's return value) keeps metadata
+    consistent even when a re-download's media fetch is rate-limited and the
+    files from a prior run are still present.
+    """
+    metadata_path = note_dir / "metadata.json"
+    if not metadata_path.exists():
+        return
+    try:
+        meta = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+
+    def _list(sub: str) -> list:
+        d = note_dir / sub
+        if not d.is_dir():
+            return []
+        return sorted(p.name for p in d.iterdir() if p.is_file())
+
+    img_files = _list("images")
+    vid_files = _list("videos")
+    if img_files:
+        meta["images"] = [f"images/{n}" for n in img_files]
+    if vid_files:
+        meta["videos"] = [f"videos/{n}" for n in vid_files]
+        if not meta.get("type"):
+            meta["type"] = "video"
+    elif img_files and not meta.get("type"):
+        meta["type"] = "normal"
+
+    metadata_path.write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Metadata writer
 # ---------------------------------------------------------------------------
@@ -493,19 +693,20 @@ def _extract_video_urls(note_data: dict) -> list:
 
 
 def _fetch_comments(
-    note_id: str, xsec_token: str, backend: str
+    url: str, note_id: str, xsec_token: str, backend: str
 ) -> list:
     """Fetch note comments from the active backend."""
     if backend.startswith("OpenCLI"):
         logger.info("Fetching comments via OpenCLI...")
         try:
+            # Current OpenCLI requires a full signed URL (not a bare note_id).
             proc = subprocess.run(
-                ["opencli", "xiaohongshu", "comments", note_id, "-f", "yaml"],
+                ["opencli", "xiaohongshu", "comments", url, "-f", "yaml"],
                 capture_output=True, text=True, timeout=30,
                 env={**__import__("os").environ, "PYTHONUTF8": "1"},
             )
             if proc.returncode != 0:
-                logger.warning(f"opencli comments returned non-zero: {proc.stderr[:200]}")
+                logger.warning(f"opencli comments returned non-zero: {(proc.stderr or '')[:200]}")
                 return []
             raw = proc.stdout.strip()
             if not raw:
